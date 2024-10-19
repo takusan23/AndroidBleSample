@@ -24,19 +24,19 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import io.github.takusan23.androidblesample.ui.screen.BleFindScreen
+import io.github.takusan23.androidblesample.ui.screen.BleScanConnectScreen
 import io.github.takusan23.androidblesample.ui.screen.GattServerScreen
 import io.github.takusan23.androidblesample.ui.theme.AndroidBleSampleTheme
 
 /** 画面遷移一覧 */
 enum class NavigationPaths(val path: String) {
-    BleFind("ble_find"),
+    BleScanConnect("ble_find"),
     GattServer("gatt_server");
 
     // TODO マテリアルアイコンを入れる
     val icon: ImageVector
         get() = when (this) {
-            BleFind -> Icons.Default.Search
+            BleScanConnect -> Icons.Default.Search
             GattServer -> Icons.Default.Share
         }
 }
@@ -78,10 +78,10 @@ private fun MainScreen() {
                 .consumeWindowInsets(WindowInsets.statusBars)
                 .consumeWindowInsets(WindowInsets.navigationBars),
             navController = navController,
-            startDestination = NavigationPaths.BleFind.path
+            startDestination = NavigationPaths.BleScanConnect.path
         ) {
-            composable(NavigationPaths.BleFind.path) {
-                BleFindScreen()
+            composable(NavigationPaths.BleScanConnect.path) {
+                BleScanConnectScreen()
             }
             composable(NavigationPaths.GattServer.path) {
                 GattServerScreen()
