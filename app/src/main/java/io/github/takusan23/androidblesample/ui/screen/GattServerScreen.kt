@@ -42,13 +42,13 @@ fun GattServerScreen() {
 
             override fun onConnectionStateChange(device: BluetoothDevice?, status: Int, newState: Int) {
                 super.onConnectionStateChange(device, status, newState)
-                println("onConnectionStateChange device=$device / status=$status / newState=$newState")
+                Toast.makeText(context, "onConnectionStateChange device=$device / status=$status / newState=$newState", Toast.LENGTH_SHORT).show()
             }
 
             // read 要求がされたら返す
             override fun onCharacteristicReadRequest(device: BluetoothDevice?, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic?) {
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
-                bleGattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, "Hello World".toByteArray())
+                bleGattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, "Hello World".toByteArray(Charsets.UTF_8))
             }
 
         })

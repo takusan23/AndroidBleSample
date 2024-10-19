@@ -2,7 +2,11 @@ package io.github.takusan23.androidblesample.ui.screen
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -31,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +61,7 @@ fun BleFindScreen() {
             }
         }
 
+        // UUID 指定して検索
         val scanFilter = ScanFilter.Builder().apply {
             setServiceUuid(ParcelUuid.fromString(GATT_SERVER_SERVICE_UUID))
         }.build()
@@ -82,7 +88,35 @@ fun BleFindScreen() {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { }
+                            .clickable {
+                                device.connectGatt(context, false, object : BluetoothGattCallback() {
+
+                                    override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+                                        super.onConnectionStateChange(gatt, status, newState)
+                                        println("onConnectionStateChange status=$newState")
+                                        if (newState == BluetoothProfile.STATE_CONNECTED) {
+                                            // 接続できたらサービスを探す
+                                            gatt?.discoverServices()
+                                        }
+                                    }
+
+                                    override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+                                        super.onServicesDiscovered(gatt, status)
+                                        println("onServicesDiscovered")
+                                        val findService = gatt?.services?.first { it.uuid == UUID.fromString(GATT_SERVER_SERVICE_UUID) }
+                                        val findCharacteristic = findService?.characteristics?.first { it.uuid == UUID.fromString(GATT_SERVER_CHARACTERISTICS_UUID) }
+                                        // GATT サーバーへ狙ったサービス内にあるキャラクタリスティックへ read を試みる
+                                        gatt?.readCharacteristic(findCharacteristic)
+                                    }
+
+                                    override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
+                                        super.onCharacteristicRead(gatt, characteristic, value, status)
+                                        println(value.toString(Charsets.UTF_8))
+                                        // 閉じる
+                                        gatt.close()
+                                    }
+                                })
+                            }
                     ) {
                         Text(text = device.name ?: "不明な名前", fontSize = 20.sp)
                         Text(text = device.address ?: "不明なアドレス")
