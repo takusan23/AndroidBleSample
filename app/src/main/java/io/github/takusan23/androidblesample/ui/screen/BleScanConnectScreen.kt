@@ -12,6 +12,7 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.Build
 import android.os.ParcelUuid
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +52,8 @@ fun BleScanConnectScreen() {
     val bluetoothGatt = remember { mutableStateOf<BluetoothGatt?>(null) }
     val serviceUuid = remember { mutableStateOf(DEFAULT_GATT_SERVER_SERVICE_UUID) }
     val characteristicUuid = remember { mutableStateOf(DEFAULT_GATT_SERVER_CHARACTERISTICS_UUID) }
-    val readCharacteristicLogList = remember { mutableStateOf(emptyList<String>()) }
+    val readRequestTextList = remember { mutableStateOf(emptyList<String>()) }
+    val writeRequestText = remember { mutableStateOf(Build.MODEL) }
 
     fun findDeviceAndConnectService() {
         scope.launch {
@@ -95,9 +97,9 @@ fun BleScanConnectScreen() {
             bluetoothDevice?.connectGatt(context, false, object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
                     super.onConnectionStateChange(gatt, status, newState)
-                    if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        // 接続できたらサービスを探す
-                        gatt?.discoverServices()
+                    when (newState) {
+                        BluetoothProfile.STATE_CONNECTED -> gatt?.discoverServices() // 接続できたらサービスを探す
+                        BluetoothProfile.STATE_DISCONNECTED -> bluetoothGatt.value = null // なくなった
                     }
                 }
 
@@ -111,7 +113,7 @@ fun BleScanConnectScreen() {
                 // onCharacteristicReadRequest で送られてきたデータを受け取る
                 override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
                     super.onCharacteristicRead(gatt, characteristic, value, status)
-                    readCharacteristicLogList.value += value.toString(Charsets.UTF_8)
+                    readRequestTextList.value += value.toString(Charsets.UTF_8)
                 }
             })
         }
@@ -124,6 +126,17 @@ fun BleScanConnectScreen() {
         val findCharacteristic = findService?.characteristics?.first { it.uuid == UUID.fromString(characteristicUuid.value) }
         // 結果は onCharacteristicRead で
         gatt.readCharacteristic(findCharacteristic)
+    }
+
+    fun writeCharacteristic() {
+        val gatt = bluetoothGatt.value ?: return
+        // GATT サーバーへ狙ったサービス内にあるキャラクタリスティックへ read を試みる
+        val findService = gatt.services?.first { it.uuid == UUID.fromString(serviceUuid.value) } ?: return
+        val findCharacteristic = findService.characteristics?.first { it.uuid == UUID.fromString(characteristicUuid.value) } ?: return
+        // 結果は onCharacteristicWriteRequest で
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            gatt.writeCharacteristic(findCharacteristic, writeRequestText.value.toByteArray(Charsets.UTF_8), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        }
     }
 
     fun closeGatt() {
@@ -175,29 +188,65 @@ fun BleScanConnectScreen() {
                 }
             }
 
-            if (bluetoothGatt.value != null) {
-                val gatt = bluetoothGatt.value!!
-                item {
-                    OutlinedCard(
-                        modifier = Modifier
-                            .padding(horizontal = 10.dp)
-                            .fillMaxWidth()
-                    ) {
-                        Column(Modifier.padding(10.dp)) {
-                            Text(
-                                text = "GATT サーバー情報",
-                                fontSize = 20.sp
-                            )
-                            Text(text = gatt.device.address)
+            // gatt 無いなら return
+            val gatt = bluetoothGatt.value ?: return@LazyColumn
 
-                            Button(onClick = { readCharacteristic() }) {
-                                Text(text = "READ")
-                            }
-                            Text(text = "ログ")
-                            HorizontalDivider()
-                            readCharacteristicLogList.value.forEach {
-                                Text(text = it)
-                            }
+            item {
+                OutlinedCard(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(
+                            text = "GATT サーバー情報",
+                            fontSize = 20.sp
+                        )
+                        Text(text = gatt.device.address)
+                    }
+                }
+            }
+
+            item {
+                OutlinedCard(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(
+                            text = "送信するデータ",
+                            fontSize = 20.sp
+                        )
+                        OutlinedTextField(
+                            value = writeRequestText.value,
+                            onValueChange = { writeRequestText.value = it },
+                            label = { Text(text = "送信する文字列") }
+                        )
+                        Button(onClick = { writeCharacteristic() }) {
+                            Text(text = "WRITE")
+                        }
+                    }
+                }
+            }
+
+            item {
+                OutlinedCard(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(
+                            text = "受信したデータ",
+                            fontSize = 20.sp
+                        )
+                        Button(onClick = { readCharacteristic() }) {
+                            Text(text = "READ")
+                        }
+                        HorizontalDivider()
+                        readRequestTextList.value.forEach {
+                            Text(text = it)
                         }
                     }
                 }

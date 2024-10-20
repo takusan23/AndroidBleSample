@@ -14,6 +14,7 @@ import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
+import android.os.Build
 import android.os.ParcelUuid
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -55,7 +56,8 @@ fun GattServerScreen() {
     val connectDeviceList = remember { mutableStateOf(emptyList<BluetoothDevice>()) }
     val serviceUuid = remember { mutableStateOf(DEFAULT_GATT_SERVER_SERVICE_UUID) }
     val characteristicUuid = remember { mutableStateOf(DEFAULT_GATT_SERVER_CHARACTERISTICS_UUID) }
-    val readRequestText = remember { mutableStateOf("Hello BLE") }
+    val readRequestText = remember { mutableStateOf(Build.MODEL) }
+    val writeRequestTextList = remember { mutableStateOf(emptyList<Pair<String, String>>()) }
 
     fun stopGattServer() {
         bleGattServer?.close()
@@ -79,10 +81,21 @@ fun GattServerScreen() {
             }
 
             // readCharacteristic が要求されたら呼ばれる
+            // セントラルへ送信する
             override fun onCharacteristicReadRequest(device: BluetoothDevice?, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic?) {
                 super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
                 val textToByteArray = readRequestText.value.toByteArray(Charsets.UTF_8)
                 bleGattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, textToByteArray)
+            }
+
+            // writeCharacteristic が要求されたら呼ばれる
+            // セントラルから受信する
+            override fun onCharacteristicWriteRequest(device: BluetoothDevice?, requestId: Int, characteristic: BluetoothGattCharacteristic?, preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?) {
+                super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
+                val address = device?.address ?: return
+                val writeText = value?.toString(Charsets.UTF_8) ?: return
+                writeRequestTextList.value += address to writeText
+                bleGattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
             }
         })
         //サービスとキャラクタリスティックを作る
@@ -174,7 +187,27 @@ fun GattServerScreen() {
                 ) {
                     Column(Modifier.padding(10.dp)) {
                         Text(
-                            text = "キャラクタリスティック 設定",
+                            text = "接続済みデバイス",
+                            fontSize = 20.sp
+                        )
+                        connectDeviceList.value.forEach { device ->
+                            Text(text = device.name ?: "不明なデバイス")
+                            Text(text = device.address)
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            }
+
+            item {
+                OutlinedCard(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(
+                            text = "送信するデータ",
                             fontSize = 20.sp
                         )
                         OutlinedTextField(
@@ -194,13 +227,12 @@ fun GattServerScreen() {
                 ) {
                     Column(Modifier.padding(10.dp)) {
                         Text(
-                            text = "接続済みデバイス",
+                            text = "受信したデータ",
                             fontSize = 20.sp
                         )
-                        connectDeviceList.value.forEach { device ->
-                            Text(text = device.name ?: "不明なデバイス")
-                            Text(text = device.address)
-                            HorizontalDivider()
+                        HorizontalDivider()
+                        writeRequestTextList.value.forEach { (address, writeText) ->
+                            Text(text = "[$address] $writeText")
                         }
                     }
                 }
